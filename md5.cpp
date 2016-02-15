@@ -5,6 +5,7 @@
 #include <cmath>
 #include <cstring>
 #include <iomanip>
+#include <cassert>
 
 std::ostream& operator<<(std::ostream& os, md5 const & obj) {
 	os << std::hex << std::setfill('0') << std::setw(8) << obj.a;
@@ -48,30 +49,22 @@ static ui32 endian(ui32 x) {
 		((x >>  0 & 0xff) << 24);
 }
 
-md5 hashmd5(char const *data, ui64 const len) {
-	i64 padding = 56 - len % 64;
-	if(padding <= 0) {
-		padding += 64;
-	}
-	ui64 const plen = len+padding+8;
-	std::vector<unsigned char> copy(plen);
-	memcpy(&copy[0], data, len);
-	copy[len] = 0x80;
-	memset(&copy[len+1], 0, padding-1);
-	auto const words = reinterpret_cast<ui32*>(&copy[0]);
-	words[plen/4-2] = len*8;
-	words[plen/4-1] = len*8>>32;
-	ui32 A, B, C, D;
-	A = 0x67452301; //Checked starting values
-	B = 0xefcdab89;
-	C = 0x98badcfe;
-	D = 0x10325476;
+md5ctx::~md5ctx() {
+	A = 0, B = 0, C = 0, D = 0;
+	memset(buffer, 0, sizeof buffer);
+	bufpos = 0;
+	tlen = 0;
+}
 
+
+void md5ctx::transform() {
+	auto const words = reinterpret_cast<ui32*>(buffer);
 	ui32 T[65];
 	for(short i = 0; i < 65; ++i) {
 		T[i] = 4294967296l * std::abs(std::sin(i)); //Checked every value
 	}
-	for(ui64 i = 0; i < plen/16/4; ++i) { //plen/16 ?
+	assert(bufpos % 16 == 0);
+	for(ui64 i = 0; i < bufpos/WORD_BYTES/MD5_BLOCK_WORDS; ++i) {
 		ui32 X[16];
 		for(short j = 0; j < 16; ++j) {
 			X[j] = words[i*16+j];
@@ -166,5 +159,48 @@ md5 hashmd5(char const *data, ui64 const len) {
 		C += CC;
 		D += DD;
 	}
+}
+
+void md5ctx::update(char const *data, ui64 len) {
+	tlen += len; //Update total length
+	ui64 bcount; //< Bytes left in buffer for use
+	while(len >= (bcount = MD5_BUF_SIZE-bufpos)) {
+		memcpy(buffer, data, bcount); // Completely fill buffer
+		bufpos += bcount;
+		transform(); //Transform as many times as buffer can be filled 
+		len -= bcount;
+		data += bcount;
+		bufpos = 0; //Full block processed, clear it
+	}
+	memcpy(buffer, data, len); //Copy 
+	bufpos += len; //Advance bufpos to new offset
+	assert(bufpos < MD5_BUF_SIZE);
+}
+
+md5 md5ctx::finalize() {
+	i64 padding = 56 - tlen % 64;
+	if(padding <= 0) {
+		padding += 64;
+	}
+	//cannot have 0 space since we would have a complete block
+	//that could have been processed
+	assert(MD5_BUF_SIZE - bufpos > 0);
+	buffer[bufpos++] = 0x80;
+	if(MD5_BUF_SIZE - bufpos < 8) {
+		//cannot fit padding + length
+		memset(buffer+bufpos, 0, MD5_BUF_SIZE-bufpos);
+		padding -= MD5_BUF_SIZE-bufpos;
+		bufpos = MD5_BUF_SIZE;
+		transform();
+		bufpos = 0;
+	}
+	memset(buffer+bufpos, 0, --padding);
+	bufpos += padding + 8; //off by one?
+
+	auto const words = reinterpret_cast<ui32*>(buffer);
+	words[bufpos/WORD_BYTES-2] = tlen*8; //off by one?
+	words[bufpos/WORD_BYTES-1] = tlen*8>>32;
+
+	transform();
 	return md5(endian(A), endian(B), endian(C), endian(D));
 }
