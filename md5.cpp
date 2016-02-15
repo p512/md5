@@ -60,7 +60,7 @@ md5ctx::~md5ctx() {
  * runs the md5 algorithm
  * preconditions: 
  * 	buffer contains the data to hash
- * 	bufpos must be a multiple of (16*(words in a byte))
+ * 	bufpos must be a multiple of (16*(bytes in a word))
  * invariant: 
  * 	does not modify the buffer
  * postconditions:
