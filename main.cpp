@@ -1,19 +1,26 @@
 #include <iostream>
-#include <cstring>
-#include <vector>
-#include <string>
-#include <algorithm>
+#include <fstream>
 
 #include "md5.hpp"
 
 using namespace std;
 
-int main() {
+int main(int argc, char **argv) {
+	ifstream file;
+	istream *is = &cin;
+	if(argc > 1) {
+		file.open(argv[1]);
+		is = &file;
+	}
+	if(!is->good()) {
+		cerr << "Failed to open file." << endl;
+		return 1;
+	}
 	char buf[1<<16];
 	md5ctx m;
-	while(cin) {
-		cin.read(buf, sizeof buf);
-		size_t n = cin.gcount();
+	while(*is) {
+		is->read(buf, sizeof buf);
+		size_t n = is->gcount();
 		if(n) {
 			m.update(buf, n);
 		}

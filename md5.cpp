@@ -56,14 +56,25 @@ md5ctx::~md5ctx() {
 	tlen = 0;
 }
 
-
+/*
+ * runs the md5 algorithm
+ * preconditions: 
+ * 	buffer contains the data to hash
+ * 	bufpos must be a multiple of 16
+ * invariant: 
+ * 	does not modify the buffer
+ * postconditions:
+ * 	A,B,C,D will be updated accordingly
+ */
 void md5ctx::transform() {
 	auto const words = reinterpret_cast<ui32*>(buffer);
 	ui32 T[65];
 	for(short i = 0; i < 65; ++i) {
-		T[i] = 4294967296l * std::abs(std::sin(i)); //Checked every value
+		//This actually works, although I would not expect
+		//a lot of platform compatability
+		T[i] = 4294967296l * std::abs(std::sin(i));
 	}
-	assert(bufpos % 16 == 0);
+	assert(bufpos % (16*WORD_BYTES) == 0); //A single 16-word block must have been filled
 	for(ui64 i = 0; i < bufpos/WORD_BYTES/MD5_BLOCK_WORDS; ++i) {
 		ui32 X[16];
 		for(short j = 0; j < 16; ++j) {
@@ -161,9 +172,13 @@ void md5ctx::transform() {
 	}
 }
 
+/*
+ * Adds data to the hash
+ * client-history-constraint: must not have called finalize
+ */
 void md5ctx::update(char const *data, ui64 len) {
 	tlen += len; //Update total length
-	ui64 bcount; //< Bytes left in buffer for use
+	ui64 bcount; //Bytes left in buffer for use
 	while(len >= (bcount = MD5_BUF_SIZE-bufpos)) {
 		memcpy(buffer, data, bcount); // Completely fill buffer
 		bufpos += bcount;
@@ -172,11 +187,15 @@ void md5ctx::update(char const *data, ui64 len) {
 		data += bcount;
 		bufpos = 0; //Full block processed, clear it
 	}
-	memcpy(buffer, data, len); //Copy 
-	bufpos += len; //Advance bufpos to new offset
+	memcpy(buffer, data, len); //Fill buffer with remnants
+	bufpos += len;
 	assert(bufpos < MD5_BUF_SIZE);
 }
 
+/*
+ * completes the computation and returns the final hash value
+ * client-history-constraint: must not have been called before
+ */
 md5 md5ctx::finalize() {
 	i64 padding = 56 - tlen % 64;
 	if(padding <= 0) {
@@ -185,9 +204,8 @@ md5 md5ctx::finalize() {
 	//cannot have 0 space since we would have a complete block
 	//that could have been processed
 	assert(MD5_BUF_SIZE - bufpos > 0);
-	buffer[bufpos++] = 0x80;
-	if(MD5_BUF_SIZE - bufpos < 8) {
-		//cannot fit padding + length
+	buffer[bufpos++] = 0x80; //single set bit and 7 zeros
+	if(MD5_BUF_SIZE - bufpos < 8) { //cannot fit padding + length
 		memset(buffer+bufpos, 0, MD5_BUF_SIZE-bufpos);
 		padding -= MD5_BUF_SIZE-bufpos;
 		bufpos = MD5_BUF_SIZE;
@@ -195,12 +213,12 @@ md5 md5ctx::finalize() {
 		bufpos = 0;
 	}
 	memset(buffer+bufpos, 0, --padding);
-	bufpos += padding + 8; //off by one?
+	bufpos += padding + 8;
 
 	auto const words = reinterpret_cast<ui32*>(buffer);
-	words[bufpos/WORD_BYTES-2] = tlen*8; //off by one?
-	words[bufpos/WORD_BYTES-1] = tlen*8>>32;
+	words[bufpos/WORD_BYTES-2] = tlen*8; //tlen<<3
+	words[bufpos/WORD_BYTES-1] = tlen*8>>32; //tlen>>29
 
-	transform();
+	transform(); //final transform
 	return md5(endian(A), endian(B), endian(C), endian(D));
 }
