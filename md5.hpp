@@ -27,7 +27,7 @@ class md5ctx {
 	ui32 A = 0x67452301, B = 0xefcdab89, C = 0x98badcfe, D = 0x10325476;
 	unsigned char buffer[MD5_BUF_SIZE];
 	ui32 bufpos = 0; //position in bytes in buffer
-	ui64 tlen = 0;
+	ui64 tlen = 0; //total length in bytes
 
 	void transform();
 public:
