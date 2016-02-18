@@ -1,8 +1,7 @@
 CC=g++
-CFLAGS=-std=c++14 -Ofast -Wall -Wextra -Wpedantic -flto -DNDEBUG
-#CFLAGS=-std=c++14 -O0 -Wall -Wextra -Wpedantic -g
-LDFLAGS=-flto
-#LDFLAGS=
+OPT=-Ofast -flto -march=native -mtune=native
+CFLAGS=-std=c++14 -Wall -Wextra -Wpedantic $(OPT) -DNDEBUG
+LDFLAGS=$(OPT)
 EXEC=md5
 
 .PHONY: all clean
