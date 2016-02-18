@@ -76,10 +76,7 @@ void md5ctx::transform() {
 	}
 	assert(bufpos % (16*WORD_BYTES) == 0); //A single 16-word block must have been filled
 	for(ui64 i = 0; i < bufpos/WORD_BYTES/MD5_BLOCK_WORDS; ++i) {
-		ui32 X[16];
-		for(short j = 0; j < 16; ++j) {
-			X[j] = words[i*16+j];
-		}
+		ui32 *X = words+i*16;
 		ui32 AA = A, BB = B, CC = C, DD = D;
 		{ //Round 1
 			md5round(F, A, B, C, D,  0,  7,  1, X, T);
